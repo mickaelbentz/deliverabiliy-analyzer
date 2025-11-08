@@ -13,12 +13,15 @@ const analyzeBtn = document.getElementById('analyze-btn');
 const resultsSection = document.getElementById('results-section');
 const resetBtn = document.getElementById('reset-btn');
 
-// Mots spam courants
+// Mots spam courants (note: selon Badsender, impact limité mais à surveiller)
 const SPAM_WORDS = [
     'gratuit', 'free', 'urgent', 'cliquez ici', 'click here', 'garantie',
     'argent facile', 'gagner', 'prize', 'winner', 'congratulations',
     'act now', 'limited time', 'offre limitée', 'millionaire', 'casino',
-    '100%', 'satisfaction garantie', 'risque zéro', 'viagra', 'lottery'
+    '100%', 'satisfaction garantie', 'risque zéro', 'viagra', 'lottery',
+    'act immediately', 'apply now', 'become a member', 'billing', 'billion',
+    'cash bonus', 'cheap', 'clearance', 'collect', 'compare rates',
+    'credit', 'dear friend', 'discount', 'earn money', 'eliminate debt'
 ];
 
 // Gestion du drag & drop
@@ -89,7 +92,8 @@ function analyzeEmail() {
         content: analyzeContent(),
         images: analyzeImages(),
         links: analyzeLinks(),
-        performance: analyzePerformance()
+        performance: analyzePerformance(),
+        compliance: analyzeCompliance()
     };
 }
 
@@ -99,14 +103,14 @@ function analyzeStructure() {
     let score = 0;
     const maxScore = 100;
 
-    // DOCTYPE
-    const hasDoctype = emailHTML.toLowerCase().includes('<!doctype');
+    // DOCTYPE HTML5
+    const hasDoctype = emailHTML.toLowerCase().includes('<!doctype html');
     checks.push({
         pass: hasDoctype,
-        title: 'DOCTYPE déclaré',
-        description: hasDoctype ? 'Le DOCTYPE est présent' : 'Ajoutez un DOCTYPE HTML pour une meilleure compatibilité'
+        title: 'DOCTYPE HTML5',
+        description: hasDoctype ? 'DOCTYPE HTML5 présent - Standard moderne' : 'Ajoutez <!DOCTYPE html> pour une meilleure compatibilité'
     });
-    if (hasDoctype) score += 15;
+    if (hasDoctype) score += 12;
 
     // Balise <title>
     const hasTitle = emailDoc.querySelector('title') !== null;
@@ -115,21 +119,21 @@ function analyzeStructure() {
         title: 'Balise <title>',
         description: hasTitle ? 'La balise title est présente' : 'Ajoutez une balise <title> pour identifier l\'email'
     });
-    if (hasTitle) score += 10;
+    if (hasTitle) score += 8;
 
-    // Utilisation de tableaux
+    // Utilisation de tableaux (standard email)
     const tables = emailDoc.querySelectorAll('table');
     const hasTables = tables.length > 0;
     checks.push({
         pass: hasTables,
         title: 'Utilisation de tableaux',
         description: hasTables
-            ? `${tables.length} tableau(x) utilisé(s) - Bonne pratique pour la compatibilité`
+            ? `${tables.length} tableau(x) - Standard pour layout email`
             : 'Utilisez des tableaux pour la mise en page (meilleure compatibilité)'
     });
-    if (hasTables) score += 20;
+    if (hasTables) score += 15;
 
-    // CSS inline
+    // CSS inline vs externe
     const elementsWithStyle = emailDoc.querySelectorAll('[style]');
     const inlineStylesCount = elementsWithStyle.length;
     const externalStyles = emailDoc.querySelectorAll('link[rel="stylesheet"]');
@@ -137,38 +141,70 @@ function analyzeStructure() {
 
     checks.push({
         pass: !hasExternalCSS,
-        title: 'CSS externe',
+        title: 'Pas de CSS externe',
         description: hasExternalCSS
             ? 'CSS externe détecté - Utilisez plutôt du CSS inline'
             : 'Pas de CSS externe - Excellent'
     });
-    if (!hasExternalCSS) score += 20;
+    if (!hasExternalCSS) score += 15;
 
     checks.push({
         pass: inlineStylesCount > 0,
-        title: 'CSS inline',
+        title: 'CSS inline présent',
         description: inlineStylesCount > 0
-            ? `${inlineStylesCount} éléments avec du style inline - Bonne pratique`
+            ? `${inlineStylesCount} éléments avec style inline - Bonne pratique`
             : 'Ajoutez du CSS inline pour une meilleure compatibilité'
     });
-    if (inlineStylesCount > 0) score += 20;
+    if (inlineStylesCount > 0) score += 15;
 
-    // Largeur fixe
-    const bodyOrTable = emailDoc.querySelector('body > table, body > div > table');
-    let hasFixedWidth = false;
+    // Largeur optimale (640px selon Badsender)
+    const bodyOrTable = emailDoc.querySelector('body > table, body > div > table, body > center > table');
+    let hasOptimalWidth = false;
+    let currentWidth = 0;
     if (bodyOrTable) {
-        const width = bodyOrTable.getAttribute('width') || bodyOrTable.style.width;
-        hasFixedWidth = width && (width.includes('600') || width.includes('650'));
+        const widthAttr = bodyOrTable.getAttribute('width');
+        const widthStyle = bodyOrTable.style.width;
+        const width = widthAttr || widthStyle;
+        if (width) {
+            currentWidth = parseInt(width);
+            hasOptimalWidth = currentWidth >= 600 && currentWidth <= 650;
+        }
     }
 
     checks.push({
-        pass: hasFixedWidth,
-        title: 'Largeur recommandée (600-650px)',
-        description: hasFixedWidth
-            ? 'Largeur optimale pour les emails'
-            : 'Recommandé : 600-650px de largeur max pour compatibilité mobile'
+        pass: hasOptimalWidth,
+        title: 'Largeur optimale (600-650px)',
+        description: hasOptimalWidth
+            ? `${currentWidth}px - Largeur optimale pour emails`
+            : currentWidth > 0
+                ? `${currentWidth}px - Recommandé : 600-650px max`
+                : 'Définissez une largeur de 600-650px pour compatibilité mobile'
     });
-    if (hasFixedWidth) score += 15;
+    if (hasOptimalWidth) score += 12;
+
+    // Pre-header présent (Batch.com best practice)
+    const preheader = emailDoc.querySelector('div[style*="display:none"], div[style*="display: none"]');
+    const hasPreheader = preheader !== null && preheader.textContent.trim().length > 0;
+    checks.push({
+        pass: hasPreheader,
+        title: 'Pre-header présent',
+        description: hasPreheader
+            ? 'Pre-header détecté - Optimise l\'aperçu inbox'
+            : 'Ajoutez un pre-header caché pour améliorer l\'aperçu dans les clients mail'
+    });
+    if (hasPreheader) score += 13;
+
+    // Images Base64 (à éviter selon Batch.com)
+    const base64Images = emailHTML.match(/src=["']data:image/gi) || [];
+    const hasBase64 = base64Images.length > 0;
+    checks.push({
+        pass: !hasBase64,
+        title: 'Pas d\'images Base64',
+        description: hasBase64
+            ? `${base64Images.length} image(s) Base64 - Alourdit l'email, hébergez-les en ligne`
+            : 'Pas d\'images Base64 - Excellent'
+    });
+    if (!hasBase64) score += 10;
 
     return {
         score: Math.round(score),
@@ -188,49 +224,53 @@ function analyzeContent() {
     const textLength = textContent.trim().length;
 
     checks.push({
-        pass: textLength > 50,
-        title: 'Longueur du texte',
-        description: textLength > 50
+        pass: textLength > 100,
+        title: 'Longueur du texte suffisante',
+        description: textLength > 100
             ? `${textLength} caractères - Suffisant`
-            : 'Augmentez le contenu textuel (minimum 50 caractères)'
+            : `${textLength} caractères - Minimum 100 caractères recommandé`
     });
-    if (textLength > 50) score += 20;
+    if (textLength > 100) score += 15;
 
-    // Ratio texte/HTML
+    // Ratio texte/HTML (Badsender: impact modéré)
     const htmlLength = emailHTML.length;
     const textRatio = (textLength / htmlLength) * 100;
 
     checks.push({
-        pass: textRatio > 20,
+        pass: textRatio > 15,
         title: 'Ratio texte/HTML',
-        description: `${textRatio.toFixed(1)}% de texte - ${textRatio > 20 ? 'Bon équilibre' : 'Trop de code HTML, ajoutez plus de texte'}`
+        description: `${textRatio.toFixed(1)}% de texte - ${textRatio > 15 ? 'Bon équilibre' : 'Augmentez le contenu textuel'}`
     });
-    if (textRatio > 20) score += 25;
+    if (textRatio > 15) score += 15;
+    else if (textRatio > 10) score += 8;
 
-    // Mots spam
+    // Mots spam (note Badsender: impact limité mais à surveiller)
     const lowerContent = textContent.toLowerCase();
     const spamWordsFound = SPAM_WORDS.filter(word => lowerContent.includes(word.toLowerCase()));
 
     checks.push({
-        pass: spamWordsFound.length === 0,
-        title: 'Mots déclencheurs de spam',
+        pass: spamWordsFound.length < 3,
+        title: 'Mots à risque spam',
         description: spamWordsFound.length === 0
-            ? 'Aucun mot spam détecté'
-            : `${spamWordsFound.length} mot(s) spam détecté(s): ${spamWordsFound.slice(0, 3).join(', ')}...`
+            ? 'Aucun mot à risque détecté'
+            : spamWordsFound.length < 3
+                ? `${spamWordsFound.length} mot(s) à surveiller: ${spamWordsFound.slice(0, 2).join(', ')}`
+                : `${spamWordsFound.length} mots à risque: ${spamWordsFound.slice(0, 3).join(', ')}... - Réduisez leur usage`
     });
-    if (spamWordsFound.length === 0) score += 30;
-    else if (spamWordsFound.length < 3) score += 15;
+    if (spamWordsFound.length === 0) score += 20;
+    else if (spamWordsFound.length < 3) score += 12;
+    else if (spamWordsFound.length < 5) score += 6;
 
     // Majuscules excessives
-    const uppercaseRatio = (textContent.match(/[A-Z]/g) || []).length / textContent.length * 100;
+    const uppercaseRatio = textContent.length > 0 ? (textContent.match(/[A-Z]/g) || []).length / textContent.length * 100 : 0;
     checks.push({
         pass: uppercaseRatio < 30,
         title: 'Utilisation des majuscules',
         description: uppercaseRatio < 30
             ? `${uppercaseRatio.toFixed(1)}% de majuscules - Correct`
-            : 'Trop de majuscules - Évitez l\'abus de capitales'
+            : 'Trop de majuscules - Évitez les PHRASES EN CAPITALES'
     });
-    if (uppercaseRatio < 30) score += 15;
+    if (uppercaseRatio < 30) score += 12;
 
     // Points d'exclamation
     const exclamationCount = (textContent.match(/!/g) || []).length;
@@ -239,9 +279,40 @@ function analyzeContent() {
         title: 'Points d\'exclamation',
         description: exclamationCount < 5
             ? `${exclamationCount} point(s) d'exclamation - Acceptable`
-            : 'Trop de points d\'exclamation - Réduisez pour éviter l\'aspect spam'
+            : `${exclamationCount} points d'exclamation - Réduisez pour éviter l\'aspect spam`
     });
     if (exclamationCount < 5) score += 10;
+
+    // Contenu lisible sans images (Badsender best practice)
+    const images = emailDoc.querySelectorAll('img');
+    const totalImgTextLength = Array.from(images).reduce((sum, img) => {
+        return sum + (img.getAttribute('alt') || '').length;
+    }, 0);
+
+    const textWithoutImgAlt = textLength - totalImgTextLength;
+    const isReadableWithoutImages = textWithoutImgAlt > 50;
+
+    checks.push({
+        pass: isReadableWithoutImages,
+        title: 'Email lisible sans images',
+        description: isReadableWithoutImages
+            ? 'L\'email reste lisible même sans images - Excellent'
+            : 'Assurez-vous que l\'email soit compréhensible sans affichage des images'
+    });
+    if (isReadableWithoutImages) score += 18;
+
+    // Adresse physique présente (exigence légale selon Batch.com)
+    const hasPhysicalAddress = /\d+.*(?:rue|avenue|boulevard|street|road|ave|blvd|way)/i.test(textContent) ||
+                              /\d{5}/.test(textContent); // Code postal
+
+    checks.push({
+        pass: hasPhysicalAddress,
+        title: 'Adresse physique dans le footer',
+        description: hasPhysicalAddress
+            ? 'Adresse physique détectée - Conformité légale (CAN-SPAM, RGPD)'
+            : 'Ajoutez votre adresse postale dans le footer (obligation légale)'
+    });
+    if (hasPhysicalAddress) score += 10;
 
     return {
         score: Math.round(score),
@@ -259,37 +330,44 @@ function analyzeImages() {
     const images = emailDoc.querySelectorAll('img');
     const imageCount = images.length;
 
-    // Nombre d'images
+    // Nombre d'images raisonnable
     checks.push({
         pass: imageCount > 0 && imageCount < 15,
-        title: 'Nombre d\'images',
+        title: 'Nombre d\'images approprié',
         description: imageCount === 0
             ? 'Aucune image - Ajoutez des visuels'
             : imageCount < 15
                 ? `${imageCount} image(s) - Quantité appropriée`
-                : 'Trop d\'images - Réduisez pour améliorer le temps de chargement'
+                : `${imageCount} images - Trop d'images peut ralentir le chargement`
     });
-    if (imageCount > 0 && imageCount < 15) score += 25;
+    if (imageCount > 0 && imageCount < 15) score += 20;
     else if (imageCount === 0) score += 10;
 
-    // Attributs alt
+    // Attributs alt OBLIGATOIRES (Badsender + Batch.com)
     let imagesWithAlt = 0;
+    let imagesWithEmptyAlt = 0;
     images.forEach(img => {
-        if (img.hasAttribute('alt')) imagesWithAlt++;
+        if (img.hasAttribute('alt')) {
+            imagesWithAlt++;
+            if (img.getAttribute('alt').trim() === '') {
+                imagesWithEmptyAlt++;
+            }
+        }
     });
 
     const altRatio = imageCount > 0 ? (imagesWithAlt / imageCount) * 100 : 100;
     checks.push({
         pass: altRatio === 100,
-        title: 'Attributs alt sur les images',
+        title: 'Attributs alt sur TOUTES les images',
         description: imageCount === 0
             ? 'Pas d\'images'
             : altRatio === 100
-                ? 'Toutes les images ont un attribut alt - Excellent'
-                : `${imagesWithAlt}/${imageCount} images avec alt - Ajoutez alt sur toutes les images`
+                ? `Toutes les images ont un attribut alt - Excellent (${imagesWithEmptyAlt} vides pour décoratives)`
+                : `${imagesWithAlt}/${imageCount} images avec alt - OBLIGATOIRE sur toutes les images`
     });
     if (altRatio === 100) score += 30;
-    else if (altRatio > 50) score += 15;
+    else if (altRatio > 80) score += 20;
+    else if (altRatio > 50) score += 10;
 
     // Dimensions spécifiées
     let imagesWithDimensions = 0;
@@ -303,33 +381,41 @@ function analyzeImages() {
     const dimensionsRatio = imageCount > 0 ? (imagesWithDimensions / imageCount) * 100 : 100;
     checks.push({
         pass: dimensionsRatio > 80,
-        title: 'Dimensions des images',
+        title: 'Dimensions des images spécifiées',
         description: imageCount === 0
             ? 'Pas d\'images'
             : `${imagesWithDimensions}/${imageCount} images avec dimensions - ${dimensionsRatio > 80 ? 'Excellent' : 'Spécifiez width et height'}`
     });
-    if (dimensionsRatio > 80) score += 25;
-    else if (dimensionsRatio > 50) score += 12;
+    if (dimensionsRatio > 80) score += 20;
+    else if (dimensionsRatio > 50) score += 10;
 
-    // Images hébergées
+    // Images hébergées en ligne (pas locales, pas Base64)
     let externalImages = 0;
+    let base64Images = 0;
     images.forEach(img => {
         const src = img.getAttribute('src');
-        if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
-            externalImages++;
+        if (src) {
+            if (src.startsWith('http://') || src.startsWith('https://')) {
+                externalImages++;
+            } else if (src.startsWith('data:')) {
+                base64Images++;
+            }
         }
     });
 
     checks.push({
-        pass: externalImages === imageCount,
-        title: 'Hébergement des images',
+        pass: externalImages === imageCount && base64Images === 0,
+        title: 'Images hébergées en ligne',
         description: imageCount === 0
             ? 'Pas d\'images'
             : externalImages === imageCount
                 ? 'Toutes les images sont hébergées en ligne - Excellent'
-                : 'Certaines images ne sont pas hébergées - Utilisez des URLs absolues'
+                : base64Images > 0
+                    ? `${base64Images} image(s) Base64 - Hébergez-les en ligne pour réduire le poids`
+                    : `${imageCount - externalImages} image(s) locales - Utilisez des URLs absolues (https://)`
     });
-    if (imageCount === 0 || externalImages === imageCount) score += 20;
+    if (imageCount === 0 || (externalImages === imageCount && base64Images === 0)) score += 30;
+    else if (base64Images === 0) score += 15;
 
     return {
         score: Math.round(score),
@@ -347,78 +433,115 @@ function analyzeLinks() {
     const links = emailDoc.querySelectorAll('a');
     const linkCount = links.length;
 
-    // Nombre de liens
+    // Nombre de liens optimal
     checks.push({
         pass: linkCount > 0 && linkCount < 30,
-        title: 'Nombre de liens',
+        title: 'Nombre de liens optimal',
         description: linkCount === 0
             ? 'Aucun lien - Ajoutez au moins un CTA'
             : linkCount < 30
                 ? `${linkCount} lien(s) - Quantité appropriée`
-                : 'Trop de liens - Limitez à 30 maximum'
+                : `${linkCount} liens - Limitez à 30 maximum pour éviter les filtres spam`
     });
-    if (linkCount > 0 && linkCount < 30) score += 25;
+    if (linkCount > 0 && linkCount < 30) score += 20;
+    else if (linkCount >= 30 && linkCount < 50) score += 10;
 
-    // Protocole HTTPS
+    // Protocole HTTPS obligatoire (Batch.com)
     let httpsLinks = 0;
     let httpLinks = 0;
+    let mixedContent = false;
+
     links.forEach(link => {
         const href = link.getAttribute('href');
         if (href) {
             if (href.startsWith('https://')) httpsLinks++;
-            else if (href.startsWith('http://')) httpLinks++;
+            else if (href.startsWith('http://')) {
+                httpLinks++;
+                mixedContent = true;
+            }
         }
     });
 
     checks.push({
-        pass: httpLinks === 0,
-        title: 'Protocole HTTPS',
-        description: httpLinks === 0
-            ? 'Tous les liens utilisent HTTPS - Sécurisé'
-            : `${httpLinks} lien(s) en HTTP - Utilisez HTTPS pour tous les liens`
+        pass: httpLinks === 0 && httpsLinks > 0,
+        title: 'Protocole HTTPS sur tous les liens',
+        description: httpLinks === 0 && httpsLinks > 0
+            ? 'Tous les liens utilisent HTTPS - Sécurisé et conforme'
+            : httpLinks > 0
+                ? `${httpLinks} lien(s) en HTTP - UTILISEZ HTTPS pour tous les liens (sécurité + déliverabilité)`
+                : 'Vérifiez les protocoles des liens'
     });
-    if (httpLinks === 0) score += 30;
-    else if (httpLinks < 3) score += 15;
+    if (httpLinks === 0 && httpsLinks > 0) score += 25;
+    else if (httpLinks < 3) score += 12;
 
-    // Lien de désinscription
+    // Lien de désinscription OBLIGATOIRE (Batch.com + légal)
     let hasUnsubscribe = false;
-    links.forEach(link => {
+    let unsubscribePosition = 'none';
+
+    links.forEach((link, index) => {
         const text = link.textContent.toLowerCase();
         const href = (link.getAttribute('href') || '').toLowerCase();
+        const dataAttr = link.getAttribute('data-msys-unsubscribe');
+
         if (text.includes('unsubscribe') || text.includes('désinscrire') ||
-            text.includes('désinscription') || href.includes('unsubscribe')) {
+            text.includes('désinscription') || text.includes('se désabonner') ||
+            href.includes('unsubscribe') || dataAttr === '1') {
             hasUnsubscribe = true;
+            // Déterminer si c'est dans le dernier tiers de l'email (footer)
+            unsubscribePosition = index > (linkCount * 0.66) ? 'footer' : 'top';
         }
     });
 
     checks.push({
         pass: hasUnsubscribe,
-        title: 'Lien de désinscription',
+        title: 'Lien de désinscription OBLIGATOIRE',
         description: hasUnsubscribe
-            ? 'Lien de désinscription présent - Excellent'
-            : 'Ajoutez un lien de désinscription visible'
+            ? `Lien de désinscription présent (${unsubscribePosition}) - Conformité légale (RGPD, CAN-SPAM)`
+            : 'AJOUTEZ un lien de désinscription clair et visible (obligation légale)'
     });
-    if (hasUnsubscribe) score += 25;
+    if (hasUnsubscribe) score += 30;
 
-    // Texte des liens
-    let linksWithText = 0;
+    // Texte des liens descriptif
+    let linksWithGoodText = 0;
+    let badLinkTexts = [];
+
     links.forEach(link => {
-        const text = link.textContent.trim();
-        if (text.length > 0 && !text.toLowerCase().includes('cliquez ici') &&
-            !text.toLowerCase().includes('click here')) {
-            linksWithText++;
+        const text = link.textContent.trim().toLowerCase();
+        if (text.length > 0) {
+            if (text === 'cliquez ici' || text === 'click here' ||
+                text === 'ici' || text === 'here') {
+                badLinkTexts.push(text);
+            } else {
+                linksWithGoodText++;
+            }
         }
     });
 
-    const textLinkRatio = linkCount > 0 ? (linksWithText / linkCount) * 100 : 100;
+    const goodTextRatio = linkCount > 0 ? (linksWithGoodText / linkCount) * 100 : 100;
     checks.push({
-        pass: textLinkRatio > 80,
+        pass: badLinkTexts.length === 0,
         title: 'Texte descriptif des liens',
         description: linkCount === 0
             ? 'Pas de liens'
-            : `${textLinkRatio.toFixed(0)}% de liens avec texte descriptif - ${textLinkRatio > 80 ? 'Excellent' : 'Évitez "Cliquez ici"'}`
+            : badLinkTexts.length === 0
+                ? 'Tous les liens ont un texte descriptif - Excellent pour l\'accessibilité'
+                : `${badLinkTexts.length} lien(s) avec texte générique ("cliquez ici") - Utilisez des textes descriptifs`
     });
-    if (textLinkRatio > 80) score += 20;
+    if (badLinkTexts.length === 0) score += 15;
+    else if (badLinkTexts.length < 3) score += 8;
+
+    // List-Unsubscribe header (vérification dans le code si présent)
+    const hasListUnsubHeader = emailHTML.includes('list-unsubscribe') ||
+                               emailHTML.includes('List-Unsubscribe');
+
+    checks.push({
+        pass: hasListUnsubHeader,
+        title: 'List-Unsubscribe header',
+        description: hasListUnsubHeader
+            ? 'List-Unsubscribe header détecté - One-click unsubscribe (Gmail, Yahoo)'
+            : 'Recommandé : Ajoutez un header List-Unsubscribe pour faciliter la désinscription'
+    });
+    if (hasListUnsubHeader) score += 10;
 
     return {
         score: Math.round(score),
@@ -433,58 +556,162 @@ function analyzePerformance() {
     let score = 0;
     const maxScore = 100;
 
-    // Taille du fichier
-    const fileSize = new Blob([emailHTML]).size;
-    const fileSizeKB = fileSize / 1024;
+    // Taille HTML < 102KB (limite Gmail - Batch.com)
+    const htmlSize = new Blob([emailHTML]).size;
+    const htmlSizeKB = htmlSize / 1024;
 
     checks.push({
-        pass: fileSizeKB < 100,
-        title: 'Taille du fichier',
-        description: fileSizeKB < 100
-            ? `${fileSizeKB.toFixed(1)} KB - Optimal`
-            : `${fileSizeKB.toFixed(1)} KB - Réduisez la taille (max recommandé: 100KB)`
+        pass: htmlSizeKB < 102,
+        title: 'Poids HTML < 102KB (Gmail)',
+        description: htmlSizeKB < 102
+            ? `${htmlSizeKB.toFixed(1)} KB - Sous la limite Gmail (102KB)`
+            : `${htmlSizeKB.toFixed(1)} KB - DÉPASSÉ! Gmail va tronquer l'email ([Message clipped])`
     });
-    if (fileSizeKB < 100) score += 35;
-    else if (fileSizeKB < 200) score += 20;
+    if (htmlSizeKB < 102) score += 35;
+    else if (htmlSizeKB < 120) score += 20;
+    else score += 5;
 
-    // Nombre de requêtes (images + liens externes)
-    const images = emailDoc.querySelectorAll('img[src^="http"]');
+    // Poids total < 500KB (Badsender recommendation)
+    const totalSize = htmlSize;
+    const totalSizeKB = totalSize / 1024;
+
+    checks.push({
+        pass: totalSizeKB < 500,
+        title: 'Poids total < 500KB',
+        description: totalSizeKB < 500
+            ? `${totalSizeKB.toFixed(1)} KB - Excellent pour éco-conception`
+            : `${totalSizeKB.toFixed(1)} KB - Optimisez le poids (max 500KB recommandé)`
+    });
+    if (totalSizeKB < 500) score += 20;
+    else if (totalSizeKB < 1000) score += 10;
+
+    // Nombre de requêtes externes
+    const externalImages = emailDoc.querySelectorAll('img[src^="http"]');
     const externalResources = emailDoc.querySelectorAll('link[href^="http"], script[src^="http"]');
-    const totalRequests = images.length + externalResources.length;
+    const totalRequests = externalImages.length + externalResources.length;
 
     checks.push({
         pass: totalRequests < 20,
-        title: 'Requêtes externes',
-        description: `${totalRequests} requête(s) externe(s) - ${totalRequests < 20 ? 'Acceptable' : 'Réduisez le nombre de ressources externes'}`
+        title: 'Requêtes externes limitées',
+        description: `${totalRequests} requête(s) externe(s) - ${totalRequests < 20 ? 'Optimal' : 'Réduisez le nombre de ressources'}`
     });
-    if (totalRequests < 20) score += 25;
-    else if (totalRequests < 40) score += 12;
+    if (totalRequests < 20) score += 15;
+    else if (totalRequests < 40) score += 8;
 
-    // JavaScript
+    // JavaScript (bloqué par la plupart des clients mail)
     const scripts = emailDoc.querySelectorAll('script');
     const hasScripts = scripts.length > 0;
 
     checks.push({
         pass: !hasScripts,
-        title: 'JavaScript',
+        title: 'Pas de JavaScript',
         description: hasScripts
-            ? 'JavaScript détecté - La plupart des clients mail bloquent JS'
-            : 'Pas de JavaScript - Excellent'
+            ? `${scripts.length} script(s) détecté(s) - JavaScript est bloqué par la plupart des clients mail`
+            : 'Pas de JavaScript - Conforme aux limitations email'
     });
-    if (!hasScripts) score += 20;
+    if (!hasScripts) score += 15;
 
-    // Forms
+    // Formulaires (non supportés)
     const forms = emailDoc.querySelectorAll('form');
     const hasForms = forms.length > 0;
 
     checks.push({
         pass: !hasForms,
-        title: 'Formulaires',
+        title: 'Pas de formulaires',
         description: hasForms
-            ? 'Formulaires détectés - Non supportés par beaucoup de clients mail'
-            : 'Pas de formulaires - Bon'
+            ? `${forms.length} formulaire(s) - Non supportés par la plupart des clients mail`
+            : 'Pas de formulaires - Conforme'
     });
-    if (!hasForms) score += 20;
+    if (!hasForms) score += 15;
+
+    return {
+        score: Math.round(score),
+        maxScore,
+        checks
+    };
+}
+
+// NOUVELLE CATÉGORIE : Conformité légale
+function analyzeCompliance() {
+    const checks = [];
+    let score = 0;
+    const maxScore = 100;
+
+    const textContent = emailDoc.body.textContent || '';
+    const links = emailDoc.querySelectorAll('a');
+
+    // Lien de désinscription visible
+    let hasUnsubscribe = false;
+    links.forEach(link => {
+        const text = link.textContent.toLowerCase();
+        const href = (link.getAttribute('href') || '').toLowerCase();
+        if (text.includes('unsubscribe') || text.includes('désinscrire') ||
+            text.includes('désinscription') || href.includes('unsubscribe')) {
+            hasUnsubscribe = true;
+        }
+    });
+
+    checks.push({
+        pass: hasUnsubscribe,
+        title: 'Lien de désinscription visible',
+        description: hasUnsubscribe
+            ? 'Lien de désinscription présent - Conformité RGPD/CAN-SPAM'
+            : 'OBLIGATOIRE : Ajoutez un lien de désinscription clair'
+    });
+    if (hasUnsubscribe) score += 30;
+
+    // Adresse physique (CAN-SPAM Act requirement)
+    const hasPhysicalAddress = /\d+.*(?:rue|avenue|boulevard|street|road|ave|blvd|way|place)/i.test(textContent) ||
+                              /\d{5}/.test(textContent);
+
+    checks.push({
+        pass: hasPhysicalAddress,
+        title: 'Adresse postale physique',
+        description: hasPhysicalAddress
+            ? 'Adresse postale détectée - Conformité CAN-SPAM Act'
+            : 'OBLIGATOIRE (USA) : Ajoutez votre adresse postale dans le footer'
+    });
+    if (hasPhysicalAddress) score += 25;
+
+    // Pre-header pour aperçu
+    const preheader = emailDoc.querySelector('div[style*="display:none"], div[style*="display: none"]');
+    const hasPreheader = preheader !== null && preheader.textContent.trim().length > 10;
+
+    checks.push({
+        pass: hasPreheader,
+        title: 'Pre-header optimisé',
+        description: hasPreheader
+            ? `Pre-header présent (${preheader.textContent.trim().length} caractères) - Améliore l'aperçu inbox`
+            : 'Ajoutez un pre-header (texte caché) pour optimiser l\'aperçu dans les boîtes mail'
+    });
+    if (hasPreheader) score += 20;
+
+    // Identification claire de l'expéditeur
+    const fromField = emailDoc.querySelector('[name="from"], meta[name="from"]');
+    const hasFromIdentification = fromField !== null || textContent.toLowerCase().includes('de la part de') ||
+                                   textContent.toLowerCase().includes('envoyé par');
+
+    checks.push({
+        pass: hasFromIdentification,
+        title: 'Identification de l\'expéditeur',
+        description: hasFromIdentification
+            ? 'Expéditeur identifiable - Transparence pour les destinataires'
+            : 'Clarifiez l\'identité de l\'expéditeur dans l\'email'
+    });
+    if (hasFromIdentification) score += 15;
+
+    // Responsive / Mobile-friendly
+    const hasViewport = emailHTML.includes('viewport') || emailHTML.includes('device-width');
+    const hasMediaQueries = emailHTML.includes('@media');
+
+    checks.push({
+        pass: hasViewport || hasMediaQueries,
+        title: 'Optimisation mobile',
+        description: hasViewport || hasMediaQueries
+            ? 'Meta viewport ou media queries détectés - Design responsive'
+            : 'Ajoutez une optimisation mobile (viewport meta tag ou media queries)'
+    });
+    if (hasViewport || hasMediaQueries) score += 10;
 
     return {
         score: Math.round(score),
@@ -495,13 +722,14 @@ function analyzePerformance() {
 
 // Afficher les résultats
 function displayResults(results) {
-    // Calculer le score global
+    // Calculer le score global (6 catégories maintenant)
     const totalScore = Math.round(
         (results.structure.score / results.structure.maxScore +
          results.content.score / results.content.maxScore +
          results.images.score / results.images.maxScore +
          results.links.score / results.links.maxScore +
-         results.performance.score / results.performance.maxScore) / 5 * 100
+         results.performance.score / results.performance.maxScore +
+         results.compliance.score / results.compliance.maxScore) / 6 * 100
     );
 
     // Afficher le score
@@ -540,6 +768,9 @@ function displayResults(results) {
     displayCategory('images', results.images);
     displayCategory('links', results.links);
     displayCategory('performance', results.performance);
+
+    // Nouvelle catégorie Conformité
+    displayCategory('compliance', results.compliance);
 
     // Générer les recommandations
     generateRecommendations(results);
@@ -605,12 +836,12 @@ function generateRecommendations(results) {
         return priorityOrder[a.priority] - priorityOrder[b.priority];
     });
 
-    // Afficher les 5 premières recommandations
+    // Afficher les recommandations (max 8)
     const recommendationsList = document.getElementById('recommendations-list');
     if (recommendations.length === 0) {
-        recommendationsList.innerHTML = '<p style="color: #4CAF50; font-weight: 600;">Aucune recommandation - Votre email respecte toutes les bonnes pratiques !</p>';
+        recommendationsList.innerHTML = '<p style="color: #4CAF50; font-weight: 600;">🎉 Aucune recommandation - Votre email respecte toutes les bonnes pratiques de déliverabilité !</p>';
     } else {
-        recommendationsList.innerHTML = recommendations.slice(0, 5).map(rec => `
+        recommendationsList.innerHTML = recommendations.slice(0, 8).map(rec => `
             <div class="recommendation-item">
                 <div class="recommendation-priority ${rec.priority}">${rec.priority.toUpperCase()}</div>
                 <div class="recommendation-text">${rec.text}</div>
@@ -621,11 +852,22 @@ function generateRecommendations(results) {
 
 // Déterminer la priorité d'une recommandation
 function determinePriority(checkTitle) {
-    const highPriority = ['Attributs alt', 'Protocole HTTPS', 'Mots déclencheurs', 'Lien de désinscription'];
-    const mediumPriority = ['CSS externe', 'DOCTYPE', 'Ratio texte/HTML', 'JavaScript'];
+    // Priorité HAUTE : Conformité légale + sécurité
+    const highPriority = [
+        'désinscription', 'Adresse postale', 'alt', 'HTTPS',
+        'Gmail', '102KB', 'OBLIGATOIRE'
+    ];
 
-    if (highPriority.some(p => checkTitle.includes(p))) return 'high';
-    if (mediumPriority.some(p => checkTitle.includes(p))) return 'medium';
+    // Priorité MOYENNE : Bonnes pratiques importantes
+    const mediumPriority = [
+        'CSS externe', 'DOCTYPE', 'Ratio texte', 'JavaScript',
+        'Base64', 'Pre-header', 'lisible sans images'
+    ];
+
+    const titleLower = checkTitle.toLowerCase();
+
+    if (highPriority.some(p => titleLower.includes(p.toLowerCase()))) return 'high';
+    if (mediumPriority.some(p => titleLower.includes(p.toLowerCase()))) return 'medium';
     return 'low';
 }
 
