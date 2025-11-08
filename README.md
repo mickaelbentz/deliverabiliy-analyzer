@@ -67,9 +67,15 @@ Basé sur les bonnes pratiques de **[Batch.com](https://doc.batch.com)** et **[B
 ## Utilisation
 
 1. Ouvrez l'application
-2. Glissez-déposez votre fichier HTML d'email ou cliquez pour parcourir
+2. Glissez-déposez votre fichier **HTML** ou **EML** d'email (ou cliquez pour parcourir)
 3. Cliquez sur "Analyser"
 4. Consultez votre score et les recommandations
+
+### Formats supportés
+- **`.html` / `.htm`** - Fichiers HTML d'emails
+- **`.eml`** - Fichiers emails complets (exportés depuis clients mail)
+
+L'application extrait automatiquement le contenu HTML des fichiers EML et gère les encodages Base64 et Quoted-Printable.
 
 ## Technologies
 

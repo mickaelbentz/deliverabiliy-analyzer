@@ -56,8 +56,11 @@ fileInput.addEventListener('change', (e) => {
 function handleFile(file) {
     if (!file) return;
 
-    if (!file.name.endsWith('.html') && !file.name.endsWith('.htm')) {
-        alert('Veuillez sélectionner un fichier HTML');
+    const isHTML = file.name.endsWith('.html') || file.name.endsWith('.htm');
+    const isEML = file.name.endsWith('.eml');
+
+    if (!isHTML && !isEML) {
+        alert('Veuillez sélectionner un fichier HTML ou EML');
         return;
     }
 
@@ -67,11 +70,88 @@ function handleFile(file) {
 
     const reader = new FileReader();
     reader.onload = (e) => {
-        emailHTML = e.target.result;
+        const content = e.target.result;
+
+        if (isEML) {
+            // Parser le fichier EML pour extraire le HTML
+            emailHTML = extractHTMLFromEML(content);
+            if (!emailHTML) {
+                alert('Impossible d\'extraire le contenu HTML de ce fichier EML');
+                fileInfo.style.display = 'none';
+                return;
+            }
+        } else {
+            emailHTML = content;
+        }
+
         const parser = new DOMParser();
         emailDoc = parser.parseFromString(emailHTML, 'text/html');
     };
     reader.readAsText(file);
+}
+
+// Extraire le HTML d'un fichier EML
+function extractHTMLFromEML(emlContent) {
+    // Les fichiers EML sont au format MIME
+    // Chercher la partie HTML (Content-Type: text/html)
+
+    // Méthode 1: Chercher entre les boundary pour multipart
+    const boundaryMatch = emlContent.match(/boundary="?([^"\s]+)"?/i);
+
+    if (boundaryMatch) {
+        const boundary = boundaryMatch[1];
+        const parts = emlContent.split(new RegExp(`--${boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g'));
+
+        // Chercher la partie HTML
+        for (let part of parts) {
+            if (part.includes('Content-Type: text/html') || part.includes('Content-Type:text/html')) {
+                // Extraire le contenu après les headers
+                const htmlMatch = part.split(/\r?\n\r?\n/).slice(1).join('\n');
+
+                // Décoder si base64
+                if (part.includes('Content-Transfer-Encoding: base64')) {
+                    try {
+                        return atob(htmlMatch.trim());
+                    } catch (e) {
+                        // Si le décodage échoue, essayer sans
+                    }
+                }
+
+                // Décoder si quoted-printable
+                if (part.includes('Content-Transfer-Encoding: quoted-printable')) {
+                    return decodeQuotedPrintable(htmlMatch);
+                }
+
+                return htmlMatch.trim();
+            }
+        }
+    }
+
+    // Méthode 2: Simple extraction si pas de multipart
+    // Chercher directement du HTML dans le contenu
+    const htmlRegex = /<!DOCTYPE html[\s\S]*?<\/html>/i;
+    const htmlMatch = emlContent.match(htmlRegex);
+    if (htmlMatch) {
+        return htmlMatch[0];
+    }
+
+    // Méthode 3: Chercher des balises HTML basiques
+    const simpleHtmlRegex = /<html[\s\S]*?<\/html>/i;
+    const simpleMatch = emlContent.match(simpleHtmlRegex);
+    if (simpleMatch) {
+        return simpleMatch[0];
+    }
+
+    return null;
+}
+
+// Décoder le quoted-printable
+function decodeQuotedPrintable(str) {
+    return str
+        .replace(/=\r?\n/g, '') // Supprimer les soft line breaks
+        .replace(/=([0-9A-F]{2})/gi, (match, hex) => {
+            return String.fromCharCode(parseInt(hex, 16));
+        });
 }
 
 // Analyser l'email
