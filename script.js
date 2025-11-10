@@ -1,5 +1,6 @@
 // Variables globales
 let emailHTML = '';
+let emailHTMLOriginal = ''; // HTML original AVANT parsing
 let emailDoc = null;
 
 // Éléments DOM
@@ -83,6 +84,9 @@ function handleFile(file) {
         } else {
             emailHTML = content;
         }
+
+        // IMPORTANT : Sauvegarder l'HTML ORIGINAL avant parsing
+        emailHTMLOriginal = emailHTML;
 
         const parser = new DOMParser();
         emailDoc = parser.parseFromString(emailHTML, 'text/html');
@@ -168,7 +172,6 @@ analyzeBtn.addEventListener('click', () => {
 // Fonction principale d'analyse
 function analyzeEmail() {
     return {
-        structure: analyzeStructure(),
         content: analyzeContent(),
         images: analyzeImages(),
         links: analyzeLinks(),
@@ -183,12 +186,19 @@ function analyzeStructure() {
     let score = 0;
     const maxScore = 100;
 
-    // DOCTYPE HTML5
-    const hasDoctype = emailHTML.toLowerCase().includes('<!doctype html');
+    // DOCTYPE (HTML5 ou XHTML acceptés pour emails)
+    const hasHTML5Doctype = emailHTMLOriginal.toLowerCase().includes('<!doctype html');
+    const hasXHTMLDoctype = emailHTMLOriginal.toLowerCase().includes('<!doctype html public');
+    const hasDoctype = hasHTML5Doctype || hasXHTMLDoctype;
+
     checks.push({
         pass: hasDoctype,
-        title: 'DOCTYPE HTML5',
-        description: hasDoctype ? 'DOCTYPE HTML5 présent - Standard moderne' : 'Ajoutez <!DOCTYPE html> pour une meilleure compatibilité'
+        title: 'DOCTYPE présent',
+        description: hasHTML5Doctype
+            ? 'DOCTYPE HTML5 présent - Standard moderne'
+            : hasXHTMLDoctype
+                ? 'DOCTYPE XHTML présent - Compatible emails'
+                : 'Ajoutez <!DOCTYPE html> pour une meilleure compatibilité'
     });
     if (hasDoctype) score += 12;
 
@@ -263,19 +273,36 @@ function analyzeStructure() {
     if (hasOptimalWidth) score += 12;
 
     // Pre-header présent (Batch.com best practice)
-    const preheader = emailDoc.querySelector('div[style*="display:none"], div[style*="display: none"]');
-    const hasPreheader = preheader !== null && preheader.textContent.trim().length > 0;
+    // Chercher dans le DOM
+    const preheader = emailDoc.querySelector('div[style*="display:none"], div[style*="display: none"], div[style*="display:none;"], div[style*="display: none;"]');
+
+    // Chercher aussi dans le HTML brut (pour pre-headers dans <head>)
+    const preheaderRegex = /<div[^>]*style\s*=\s*["'][^"']*display\s*:\s*none[^"']*["'][^>]*>(.*?)<\/div>/gi;
+    const preheaderMatches = emailHTMLOriginal.match(preheaderRegex);
+    let preheaderText = '';
+
+    if (preheader && preheader.textContent.trim().length > 0) {
+        preheaderText = preheader.textContent.trim();
+    } else if (preheaderMatches && preheaderMatches.length > 0) {
+        // Extraire le texte du premier pre-header trouvé
+        const match = preheaderMatches[0].match(/>(.*?)<\/div>/i);
+        if (match && match[1]) {
+            preheaderText = match[1].replace(/<[^>]*>/g, '').trim();
+        }
+    }
+
+    const hasPreheader = preheaderText.length > 0;
     checks.push({
         pass: hasPreheader,
         title: 'Pre-header présent',
         description: hasPreheader
-            ? 'Pre-header détecté - Optimise l\'aperçu inbox'
+            ? `Pre-header détecté (${preheaderText.substring(0, 50)}${preheaderText.length > 50 ? '...' : ''}) - Optimise l'aperçu inbox`
             : 'Ajoutez un pre-header caché pour améliorer l\'aperçu dans les clients mail'
     });
     if (hasPreheader) score += 13;
 
     // Images Base64 (à éviter selon Batch.com)
-    const base64Images = emailHTML.match(/src=["']data:image/gi) || [];
+    const base64Images = emailHTMLOriginal.match(/src=["']data:image/gi) || [];
     const hasBase64 = base64Images.length > 0;
     checks.push({
         pass: !hasBase64,
@@ -611,8 +638,8 @@ function analyzeLinks() {
     else if (badLinkTexts.length < 3) score += 8;
 
     // List-Unsubscribe header (vérification dans le code si présent)
-    const hasListUnsubHeader = emailHTML.includes('list-unsubscribe') ||
-                               emailHTML.includes('List-Unsubscribe');
+    const hasListUnsubHeader = emailHTMLOriginal.includes('list-unsubscribe') ||
+                               emailHTMLOriginal.includes('List-Unsubscribe');
 
     checks.push({
         pass: hasListUnsubHeader,
@@ -679,15 +706,61 @@ function analyzePerformance() {
     else if (totalRequests < 40) score += 8;
 
     // JavaScript (bloqué par la plupart des clients mail)
+    // Méthode 1 : Chercher dans le DOM parsé
     const scripts = emailDoc.querySelectorAll('script');
-    const hasScripts = scripts.length > 0;
+
+    // Méthode 2 : Chercher dans le HTML ORIGINAL (AVANT parsing qui supprime les scripts)
+    // Gérer à la fois les balises normales ET les balises échappées (&lt;script&gt;)
+    const scriptOpeningTags = (emailHTMLOriginal.match(/<script[\s\S]*?>/gi) || []);
+    const scriptClosingTags = (emailHTMLOriginal.match(/<\/script>/gi) || []);
+
+    // Détecter aussi les scripts échappés
+    const escapedScriptOpeningTags = (emailHTMLOriginal.match(/&lt;script[\s\S]*?&gt;/gi) || []);
+    const escapedScriptClosingTags = (emailHTMLOriginal.match(/&lt;\/script&gt;/gi) || []);
+
+    // Le nombre total de scripts = max entre toutes les détections
+    const scriptCountFromHTML = Math.max(
+        scriptOpeningTags.length,
+        scriptClosingTags.length,
+        escapedScriptOpeningTags.length,
+        escapedScriptClosingTags.length
+    );
+
+    const totalScriptTags = Math.max(scripts.length, scriptCountFromHTML);
+
+    // Détecter les event handlers inline (onclick, onload, etc.)
+    const eventHandlers = emailDoc.querySelectorAll('[onclick], [onload], [onerror], [onmouseover], [onmouseout], [onmousedown], [onmouseup], [onfocus], [onblur], [onchange], [onsubmit]');
+
+    // Détecter aussi les event handlers dans le HTML ORIGINAL
+    const eventHandlerPattern = /\s+on(click|load|error|mouseover|mouseout|mousedown|mouseup|focus|blur|change|submit)\s*=/gi;
+    const eventHandlersInRawHTML = (emailHTMLOriginal.match(eventHandlerPattern) || []).length;
+    const totalEventHandlers = Math.max(eventHandlers.length, eventHandlersInRawHTML);
+
+    // Détecter les URLs javascript:
+    const javascriptUrls = emailDoc.querySelectorAll('[href^="javascript:"], [src^="javascript:"]');
+    const javascriptUrlsInRawHTML = (emailHTMLOriginal.match(/(?:href|src)\s*=\s*["']javascript:/gi) || []).length;
+    const totalJavascriptUrls = Math.max(javascriptUrls.length, javascriptUrlsInRawHTML);
+
+    // Compter tous les types de JavaScript détectés
+    const totalJsIssues = totalScriptTags + totalEventHandlers + totalJavascriptUrls;
+    const hasScripts = totalJsIssues > 0;
+
+    // Construire le message de description détaillé
+    let jsDescription = '';
+    if (hasScripts) {
+        const issues = [];
+        if (totalScriptTags > 0) issues.push(`${totalScriptTags} balise(s) <script>`);
+        if (totalEventHandlers > 0) issues.push(`${totalEventHandlers} event handler(s) inline (onclick, onload, etc.)`);
+        if (totalJavascriptUrls > 0) issues.push(`${totalJavascriptUrls} URL(s) javascript:`);
+        jsDescription = `JavaScript détecté : ${issues.join(', ')} - Bloqué par la plupart des clients mail`;
+    } else {
+        jsDescription = 'Pas de JavaScript - Conforme aux limitations email';
+    }
 
     checks.push({
         pass: !hasScripts,
         title: 'Pas de JavaScript',
-        description: hasScripts
-            ? `${scripts.length} script(s) détecté(s) - JavaScript est bloqué par la plupart des clients mail`
-            : 'Pas de JavaScript - Conforme aux limitations email'
+        description: jsDescription
     });
     if (!hasScripts) score += 15;
 
@@ -781,8 +854,8 @@ function analyzeCompliance() {
     if (hasFromIdentification) score += 15;
 
     // Responsive / Mobile-friendly
-    const hasViewport = emailHTML.includes('viewport') || emailHTML.includes('device-width');
-    const hasMediaQueries = emailHTML.includes('@media');
+    const hasViewport = emailHTMLOriginal.includes('viewport') || emailHTMLOriginal.includes('device-width');
+    const hasMediaQueries = emailHTMLOriginal.includes('@media');
 
     checks.push({
         pass: hasViewport || hasMediaQueries,
@@ -802,14 +875,13 @@ function analyzeCompliance() {
 
 // Afficher les résultats
 function displayResults(results) {
-    // Calculer le score global (6 catégories maintenant)
+    // Calculer le score global (5 catégories)
     const totalScore = Math.round(
-        (results.structure.score / results.structure.maxScore +
-         results.content.score / results.content.maxScore +
+        (results.content.score / results.content.maxScore +
          results.images.score / results.images.maxScore +
          results.links.score / results.links.maxScore +
          results.performance.score / results.performance.maxScore +
-         results.compliance.score / results.compliance.maxScore) / 6 * 100
+         results.compliance.score / results.compliance.maxScore) / 5 * 100
     );
 
     // Afficher le score
@@ -843,13 +915,10 @@ function displayResults(results) {
     scoreStatus.className = `score-status ${statusClass}`;
 
     // Afficher les détails par catégorie
-    displayCategory('structure', results.structure);
     displayCategory('content', results.content);
     displayCategory('images', results.images);
     displayCategory('links', results.links);
     displayCategory('performance', results.performance);
-
-    // Nouvelle catégorie Conformité
     displayCategory('compliance', results.compliance);
 
     // Générer les recommandations
