@@ -1,0 +1,24 @@
+{
+  "name": "email-deliverability-checker",
+  "version": "2.0.0",
+  "description": "Analyseur complet pour vérifier la qualité et la déliverabilité de vos emails HTML avec intégration SpamAssassin",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod",
+    "deploy:preview": "vercel"
+  },
+  "keywords": [
+    "email",
+    "deliverability",
+    "spam",
+    "spamassassin",
+    "html",
+    "analyzer"
+  ],
+  "author": "Mickaël Bentz",
+  "license": "MIT",
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  }
+}

@@ -159,24 +159,183 @@ function decodeQuotedPrintable(str) {
 }
 
 // Analyser l'email
-analyzeBtn.addEventListener('click', () => {
+analyzeBtn.addEventListener('click', async () => {
     if (!emailHTML || !emailDoc) {
         alert('Veuillez d\'abord charger un fichier HTML');
         return;
     }
 
-    const results = analyzeEmail();
-    displayResults(results);
+    // Désactiver le bouton pendant l'analyse
+    analyzeBtn.disabled = true;
+    analyzeBtn.textContent = 'Analyse en cours...';
+
+    try {
+        const results = await analyzeEmail();
+        displayResults(results);
+    } catch (error) {
+        console.error('Error during analysis:', error);
+        alert('Une erreur est survenue lors de l\'analyse. Veuillez réessayer.');
+    } finally {
+        // Réactiver le bouton
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = 'Analyser l\'email';
+    }
 });
 
+// Construction d'un email brut avec headers pour SpamAssassin
+function constructRawEmail() {
+    // Extraire les informations du document
+    const title = emailDoc.querySelector('title')?.textContent || 'Email Newsletter';
+    const metaFrom = emailDoc.querySelector('meta[name="from"]')?.content || 'sender@example.com';
+    const metaSubject = emailDoc.querySelector('meta[name="subject"]')?.content || title;
+
+    // Construire un email RFC 5322 valide
+    const headers = [
+        `From: ${metaFrom}`,
+        `To: recipient@example.com`,
+        `Subject: ${metaSubject}`,
+        `MIME-Version: 1.0`,
+        `Content-Type: text/html; charset=UTF-8`,
+        `Date: ${new Date().toUTCString()}`
+    ].join('\r\n');
+
+    // Combiner headers et body
+    return `${headers}\r\n\r\n${emailHTML}`;
+}
+
+// Analyse du score SpamAssassin
+async function analyzeSpamScore() {
+    const checks = [];
+    let score = 0;
+    const maxScore = 100;
+
+    // Construire l'email brut avec headers
+    const rawEmail = constructRawEmail();
+
+    try {
+        // Appel à notre API backend (Vercel Function)
+        // En développement local: http://localhost:3000/api/spamcheck
+        // En production: https://votre-domaine.vercel.app/api/spamcheck
+        const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:3000/api/spamcheck'
+            : '/api/spamcheck';
+
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                email: rawEmail,
+                options: 'long'
+            })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.message || 'SpamAssassin check failed');
+        }
+
+        // SpamAssassin score: < 5 = bon, > 5 = spam
+        const spamScore = parseFloat(result.score);
+        const isGood = spamScore < 2;
+        const isAcceptable = spamScore >= 2 && spamScore < 5;
+        const isBad = spamScore >= 5;
+
+        // Calcul du score sur 100
+        if (isGood) {
+            score = 100;
+        } else if (isAcceptable) {
+            // Score linéaire entre 2 et 5: 100 à 50 points
+            score = 100 - ((spamScore - 2) / 3) * 50;
+        } else {
+            // Score linéaire entre 5 et 10: 50 à 0 points
+            score = Math.max(0, 50 - ((spamScore - 5) / 5) * 50);
+        }
+
+        // Check principal: Score SpamAssassin
+        checks.push({
+            pass: spamScore < 5,
+            title: 'Score SpamAssassin',
+            description: spamScore < 2
+                ? `${spamScore.toFixed(1)}/10 - Excellent, très faible risque de spam`
+                : spamScore < 5
+                    ? `${spamScore.toFixed(1)}/10 - Acceptable, risque modéré`
+                    : `${spamScore.toFixed(1)}/10 - Attention, fort risque de spam`
+        });
+
+        // Ajouter les règles déclenchées les plus importantes
+        if (result.rules && result.rules.length > 0) {
+            // Trier par score décroissant et prendre les 5 premières
+            const topRules = result.rules
+                .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+                .slice(0, 5);
+
+            topRules.forEach(rule => {
+                checks.push({
+                    pass: rule.score < 0, // Score négatif = bon
+                    title: rule.rule,
+                    description: `${rule.score > 0 ? '+' : ''}${rule.score.toFixed(1)} pts - ${rule.description || 'Règle SpamAssassin'}`
+                });
+            });
+        }
+
+        return {
+            score: Math.round(score),
+            maxScore,
+            checks,
+            rawScore: spamScore,
+            provider: result.provider
+        };
+
+    } catch (error) {
+        console.error('SpamAssassin analysis failed:', error);
+
+        // En cas d'erreur, retourner un résultat neutre
+        checks.push({
+            pass: false,
+            title: 'Analyse SpamAssassin',
+            description: `❌ Impossible d'analyser: ${error.message}. Le service est peut-être temporairement indisponible.`
+        });
+
+        return {
+            score: 0,
+            maxScore,
+            checks,
+            error: true
+        };
+    }
+}
+
 // Fonction principale d'analyse
-function analyzeEmail() {
-    return {
+async function analyzeEmail() {
+    // Afficher un indicateur de chargement pour SpamAssassin
+    const loadingIndicator = document.getElementById('spam-loading');
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'block';
+    }
+
+    // Analyses synchrones
+    const syncResults = {
         content: analyzeContent(),
         images: analyzeImages(),
         links: analyzeLinks(),
         performance: analyzePerformance(),
         compliance: analyzeCompliance()
+    };
+
+    // Analyse asynchrone SpamAssassin
+    const spamResult = await analyzeSpamScore();
+
+    // Masquer l'indicateur de chargement
+    if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+    }
+
+    return {
+        ...syncResults,
+        spam: spamResult
     };
 }
 
@@ -878,14 +1037,23 @@ function analyzeCompliance() {
 
 // Afficher les résultats
 function displayResults(results) {
-    // Calculer le score global (5 catégories)
-    const totalScore = Math.round(
-        (results.content.score / results.content.maxScore +
-         results.images.score / results.images.maxScore +
-         results.links.score / results.links.maxScore +
-         results.performance.score / results.performance.maxScore +
-         results.compliance.score / results.compliance.maxScore) / 5 * 100
+    // Calculer le score global (6 catégories incluant SpamAssassin)
+    // Si SpamAssassin a une erreur, on ignore cette catégorie dans le calcul
+    const categoriesCount = results.spam && !results.spam.error ? 6 : 5;
+
+    let scoreSum = (
+        results.content.score / results.content.maxScore +
+        results.images.score / results.images.maxScore +
+        results.links.score / results.links.maxScore +
+        results.performance.score / results.performance.maxScore +
+        results.compliance.score / results.compliance.maxScore
     );
+
+    if (results.spam && !results.spam.error) {
+        scoreSum += results.spam.score / results.spam.maxScore;
+    }
+
+    const totalScore = Math.round(scoreSum / categoriesCount * 100);
 
     // Sauvegarder pour l'export PDF
     saveResultsForExport(results, totalScore);
@@ -926,6 +1094,11 @@ function displayResults(results) {
     displayCategory('links', results.links);
     displayCategory('performance', results.performance);
     displayCategory('compliance', results.compliance);
+
+    // Afficher la catégorie SpamAssassin
+    if (results.spam) {
+        displayCategory('spam', results.spam);
+    }
 
     // Générer les recommandations
     generateRecommendations(results);
