@@ -269,14 +269,15 @@ async function analyzeSpamScore() {
         if (result.rules && result.rules.length > 0) {
             // Trier par score décroissant et prendre les 5 premières
             const topRules = result.rules
-                .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+                .sort((a, b) => Math.abs(parseFloat(b.score)) - Math.abs(parseFloat(a.score)))
                 .slice(0, 5);
 
             topRules.forEach(rule => {
+                const ruleScore = parseFloat(rule.score);
                 checks.push({
-                    pass: rule.score < 0, // Score négatif = bon
-                    title: rule.rule,
-                    description: `${rule.score > 0 ? '+' : ''}${rule.score.toFixed(1)} pts - ${rule.description || 'Règle SpamAssassin'}`
+                    pass: ruleScore < 0, // Score négatif = bon
+                    title: rule.rule || rule.name || 'Règle SpamAssassin',
+                    description: `${ruleScore > 0 ? '+' : ''}${ruleScore.toFixed(1)} pts - ${rule.description || 'Règle SpamAssassin'}`
                 });
             });
         }
