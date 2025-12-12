@@ -267,8 +267,25 @@ async function analyzeSpamScore() {
 
         // Ajouter les règles déclenchées les plus importantes
         if (result.rules && result.rules.length > 0) {
+            // Filtrer les règles utiles :
+            // 1. Exclure les règles à 0.0 pts (warnings serveur)
+            // 2. Exclure les "ADMINISTRATOR NOTICE" (problèmes serveur Postmark)
+            // 3. Garder uniquement les règles qui impactent vraiment le score
+            const filteredRules = result.rules.filter(rule => {
+                const ruleScore = parseFloat(rule.score);
+                const description = rule.description || '';
+
+                // Exclure les règles à 0.0 pts
+                if (ruleScore === 0) return false;
+
+                // Exclure les warnings serveur (ADMINISTRATOR NOTICE)
+                if (description.includes('ADMINISTRATOR NOTICE')) return false;
+
+                return true;
+            });
+
             // Trier par score décroissant et prendre les 5 premières
-            const topRules = result.rules
+            const topRules = filteredRules
                 .sort((a, b) => Math.abs(parseFloat(b.score)) - Math.abs(parseFloat(a.score)))
                 .slice(0, 5);
 
