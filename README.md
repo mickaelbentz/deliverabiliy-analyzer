@@ -52,7 +52,8 @@ Basé sur les bonnes pratiques de **[Batch.com](https://doc.batch.com)** et **[B
    - **Analyse complète avec SpamAssassin** - Le moteur anti-spam open source #1
    - Score de 0 à 10 (< 5 = délivrable, > 5 = risque spam)
    - Détection de centaines de règles anti-spam
-   - Affichage des 5 règles principales déclenchées
+   - **Filtrage intelligent** : affichage uniquement des règles pertinentes (exclut les warnings serveur à 0.0 pts)
+   - Affichage des 5 règles principales qui impactent réellement votre score
    - Powered by Postmark SpamCheck API
 
 ### Système de notation

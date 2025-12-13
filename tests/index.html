@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tests SpamAssassin Integration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .test-controls {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .console {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #d4d4d4;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .console-line {
+            margin-bottom: 4px;
+            white-space: pre-wrap;
+        }
+
+        .console-line.error {
+            color: #f48771;
+        }
+
+        .console-line.success {
+            color: #89d185;
+        }
+
+        .console-line.warning {
+            color: #f0ad4e;
+        }
+
+        .console-line.info {
+            color: #5bc0de;
+        }
+
+        .status {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge.pending {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .environment {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .environment strong {
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Tests SpamAssassin Integration</h1>
+            <p class="subtitle">Suite de tests complète pour valider l'intégration SpamAssassin</p>
+        </div>
+
+        <div class="environment">
+            <strong>⚠️ Important:</strong> Ces tests nécessitent que l'application soit exécutée via <code>vercel dev</code> pour que l'API <code>/api/spamcheck</code> soit disponible.
+        </div>
+
+        <div class="test-controls">
+            <button id="runTests" class="btn">▶️ Lancer tous les tests</button>
+        </div>
+
+        <div class="status" id="status" style="display: none;">
+            <h3 style="margin-bottom: 15px;">📊 État des tests</h3>
+            <div id="statusContent"></div>
+        </div>
+
+        <div class="console" id="console">
+            <div class="console-line info">💡 Cliquez sur "Lancer tous les tests" pour commencer...</div>
+        </div>
+    </div>
+
+    <script src="spamassassin.test.js"></script>
+    <script>
+        const consoleEl = document.getElementById('console');
+        const statusEl = document.getElementById('status');
+        const statusContentEl = document.getElementById('statusContent');
+        const runBtn = document.getElementById('runTests');
+
+        // Intercepter console.log
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        function addToConsole(message, type = 'info') {
+            const line = document.createElement('div');
+            line.className = `console-line ${type}`;
+            line.textContent = message;
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        console.log = (...args) => {
+            originalLog(...args);
+            const message = args.join(' ');
+
+            let type = 'info';
+            if (message.includes('✓') || message.includes('✅')) type = 'success';
+            if (message.includes('✗') || message.includes('❌')) type = 'error';
+            if (message.includes('⚠️')) type = 'warning';
+
+            addToConsole(message, type);
+        };
+
+        console.error = (...args) => {
+            originalError(...args);
+            addToConsole(args.join(' '), 'error');
+        };
+
+        console.warn = (...args) => {
+            originalWarn(...args);
+            addToConsole(args.join(' '), 'warning');
+        };
+
+        // Mettre à jour le statut
+        function updateStatus(results) {
+            statusEl.style.display = 'block';
+            statusContentEl.innerHTML = '';
+
+            const tests = {
+                'Email propre': results.cleanEmail,
+                'Email spam': results.spammyEmail,
+                'Filtrage des règles': results.filtering,
+                'Cohérence du score': results.consistency,
+                'Gestion d\'erreurs': results.errorHandling,
+                'Performance': results.performance
+            };
+
+            Object.entries(tests).forEach(([name, result]) => {
+                const item = document.createElement('div');
+                item.className = 'status-item';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = name;
+
+                const badge = document.createElement('span');
+                if (!result) {
+                    badge.className = 'badge pending';
+                    badge.innerHTML = '<span class="spinner"></span>En cours...';
+                } else if (result.passed) {
+                    badge.className = 'badge success';
+                    badge.textContent = '✅ Réussi';
+                } else {
+                    badge.className = 'badge error';
+                    badge.textContent = '❌ Échoué';
+                }
+
+                item.appendChild(nameSpan);
+                item.appendChild(badge);
+                statusContentEl.appendChild(item);
+            });
+        }
+
+        // Lancer les tests
+        runBtn.addEventListener('click', async () => {
+            runBtn.disabled = true;
+            runBtn.innerHTML = '<span class="spinner"></span> Tests en cours...';
+            consoleEl.innerHTML = '';
+
+            try {
+                const { results, allPassed } = await window.SpamAssassinTests.runAllTests();
+                updateStatus(results);
+
+                runBtn.disabled = false;
+                runBtn.textContent = allPassed ? '✅ Tests terminés - Tout fonctionne' : '⚠️ Tests terminés - Voir les résultats';
+                runBtn.style.background = allPassed
+                    ? 'linear-gradient(135deg, #56ab2f 0%, #a8e063 100%)'
+                    : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+            } catch (error) {
+                console.error('Erreur lors de l\'exécution des tests:', error);
+                runBtn.disabled = false;
+                runBtn.textContent = '❌ Erreur - Réessayer';
+                runBtn.style.background = 'linear-gradient(135deg, #f5576c 0%, #f093fb 100%)';
+            }
+        });
+
+        // Vérifier que l'API est disponible au chargement
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/api/spamcheck', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'test' })
+                });
+
+                if (response.status === 400 || response.status === 200) {
+                    addToConsole('✅ API /api/spamcheck accessible', 'success');
+                } else {
+                    addToConsole('⚠️ API répond mais avec un status inattendu: ' + response.status, 'warning');
+                }
+            } catch (error) {
+                addToConsole('❌ API /api/spamcheck non accessible. Assurez-vous de lancer avec "vercel dev"', 'error');
+                runBtn.disabled = true;
+                runBtn.textContent = '❌ API non disponible';
+            }
+        });
+    </script>
+</body>
+</html>
