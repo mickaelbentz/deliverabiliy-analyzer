@@ -291,10 +291,22 @@ async function analyzeSpamScore() {
 
             topRules.forEach(rule => {
                 const ruleScore = parseFloat(rule.score);
+                const ruleName = rule.rule || rule.name || '';
+                const originalDescription = rule.description || '';
+
+                // Obtenir la traduction en français
+                const translation = getSpamAssassinRuleTranslation(ruleName, originalDescription);
+
                 checks.push({
                     pass: ruleScore < 0, // Score négatif = bon
-                    title: rule.rule || rule.name || 'Règle SpamAssassin',
-                    description: `${ruleScore > 0 ? '+' : ''}${ruleScore.toFixed(1)} pts - ${rule.description || 'Règle SpamAssassin'}`
+                    title: translation.title,
+                    description: `${ruleScore > 0 ? '+' : ''}${ruleScore.toFixed(1)} pts - ${translation.description}`,
+                    solution: translation.solution,
+                    technicalDetails: {
+                        rule: ruleName,
+                        original: originalDescription
+                    },
+                    priority: translation.priority || 'medium'
                 });
             });
         }
@@ -1144,19 +1156,56 @@ function displayCategory(categoryName, categoryData) {
     scoreElement.className = `category-score ${scoreClass}`;
 
     // Afficher les checks
-    itemsElement.innerHTML = categoryData.checks.map(check => {
+    itemsElement.innerHTML = categoryData.checks.map((check, index) => {
         const status = check.pass ? 'pass' : 'fail';
         const icon = check.pass ? '✓' : '✗';
 
-        return `
+        // Générer un ID unique pour le toggle
+        const checkId = `${categoryName}-check-${index}`;
+
+        // Construire le HTML avec solution et détails techniques si disponibles
+        let contentHTML = `
             <div class="check-item ${status}">
                 <div class="check-icon">${icon}</div>
                 <div class="check-content">
                     <div class="check-title">${check.title}</div>
                     <div class="check-description">${check.description}</div>
+        `;
+
+        // Ajouter la solution si disponible (pour SpamAssassin)
+        if (check.solution) {
+            contentHTML += `
+                    <div class="check-solution">
+                        <strong>💡 Solution :</strong> ${check.solution}
+                    </div>
+            `;
+        }
+
+        // Ajouter le toggle pour les détails techniques (pour SpamAssassin)
+        if (check.technicalDetails) {
+            contentHTML += `
+                    <div class="technical-toggle">
+                        <button class="btn-technical" onclick="toggleTechnicalDetails('${checkId}')">
+                            <span id="${checkId}-icon">▼</span> Détails techniques
+                        </button>
+                        <div class="technical-details" id="${checkId}" style="display: none;">
+                            <div class="technical-info">
+                                <strong>Règle :</strong> <code>${check.technicalDetails.rule}</code>
+                            </div>
+                            <div class="technical-info">
+                                <strong>Description originale :</strong> ${check.technicalDetails.original}
+                            </div>
+                        </div>
+                    </div>
+            `;
+        }
+
+        contentHTML += `
                 </div>
             </div>
         `;
+
+        return contentHTML;
     }).join('');
 }
 
@@ -1561,3 +1610,17 @@ exportPdfBtn.addEventListener('click', () => {
         exportPdfBtn.textContent = 'Exporter en PDF';
     }
 });
+
+// Fonction pour toggler les détails techniques
+function toggleTechnicalDetails(checkId) {
+    const detailsElement = document.getElementById(checkId);
+    const iconElement = document.getElementById(`${checkId}-icon`);
+
+    if (detailsElement.style.display === 'none') {
+        detailsElement.style.display = 'block';
+        iconElement.textContent = '▲';
+    } else {
+        detailsElement.style.display = 'none';
+        iconElement.textContent = '▼';
+    }
+}
