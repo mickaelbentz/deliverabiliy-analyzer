@@ -7,51 +7,51 @@ const SPAMASSASSIN_RULES_FR = {
     // Format et Structure
     'MIME_HTML_ONLY': {
         title: 'Email HTML uniquement',
-        description: 'Votre email ne contient qu\'une version HTML. Ajoutez une version texte brut pour améliorer la déliverabilité.',
-        solution: 'Ajoutez un contenu texte alternatif (<noscript> ou multipart/alternative) pour les clients qui bloquent le HTML.',
+        description: 'Votre email ne contient qu\'une version HTML, sans version texte brut.',
+        solution: 'Configurez votre client email pour envoyer en format "multipart/alternative" avec une version texte ET HTML. La plupart des outils d\'emailing (Mailchimp, Sendinblue, etc.) le font automatiquement.',
         priority: 'medium'
     },
 
     'MISSING_MID': {
         title: 'En-tête Message-ID manquant',
         description: 'L\'email ne contient pas d\'identifiant unique (Message-ID).',
-        solution: 'Ajoutez un header Message-ID : <unique-id@votre-domaine.com>. Votre client email devrait le faire automatiquement.',
+        solution: 'Si vous utilisez un outil d\'emailing professionnel, contactez le support - ils doivent ajouter automatiquement ce header. Pour les développeurs : ajoutez un header Message-ID avec un UUID unique.',
         priority: 'low'
     },
 
     'MISSING_DATE': {
         title: 'En-tête Date manquant',
         description: 'L\'email ne contient pas de date d\'envoi.',
-        solution: 'Ajoutez un header Date avec la date d\'envoi au format RFC 2822.',
+        solution: 'Vérifiez que votre serveur SMTP ou outil d\'emailing ajoute bien le header "Date". C\'est normalement automatique.',
         priority: 'medium'
     },
 
     'MISSING_FROM': {
         title: 'Expéditeur manquant',
         description: 'Le champ "From" (expéditeur) est absent ou invalide.',
-        solution: 'Ajoutez un header From valide : From: Nom <email@domaine.com>',
+        solution: 'Vérifiez la configuration de votre expéditeur. Format attendu : "Prénom Nom" &lt;email@domaine.com&gt;',
         priority: 'high'
     },
 
     'MISSING_SUBJECT': {
         title: 'Sujet manquant',
         description: 'L\'email n\'a pas de sujet.',
-        solution: 'Ajoutez un sujet clair et descriptif à votre email.',
+        solution: 'Ajoutez un sujet clair et descriptif. Évitez les sujets vides - c\'est un signal de spam majeur.',
         priority: 'high'
     },
 
     // Contenu et Texte
     'SUBJ_ALL_CAPS': {
         title: 'Sujet en majuscules',
-        description: 'Le sujet est entièrement en MAJUSCULES, ce qui ressemble à du spam.',
-        solution: 'Utilisez une casse normale : "Newsletter Mensuelle" au lieu de "NEWSLETTER MENSUELLE".',
+        description: 'Le sujet est entièrement en MAJUSCULES, typique des spams.',
+        solution: 'Réécrivez le sujet en casse normale. Exemple : "Offre du mois" au lieu de "OFFRE DU MOIS". Vous pouvez mettre une majuscule au début de chaque mot important, mais pas tout en CAPS.',
         priority: 'high'
     },
 
     'MANY_EXCLAMATIONS': {
         title: 'Trop de points d\'exclamation',
-        description: 'Le sujet ou le contenu contient trop de points d\'exclamation (!!!).',
-        solution: 'Limitez-vous à un seul point d\'exclamation maximum.',
+        description: 'Le sujet ou le contenu contient des points d\'exclamation multiples (!!!).',
+        solution: 'Un seul suffit ! Trop de "!!!" ressemble à du spam agressif. Restez sobre dans la ponctuation.',
         priority: 'medium'
     },
 
@@ -72,22 +72,22 @@ const SPAMASSASSIN_RULES_FR = {
     // Mots et Expressions Spam
     'MONEY_WORD': {
         title: 'Mots liés à l\'argent',
-        description: 'Le contenu contient des mots souvent utilisés dans les spams (FREE, MONEY, CASH, etc.).',
-        solution: 'Évitez les mots "FREE", "$$$", "CASH", "MONEY", "WIN" dans les sujets et contenus promotionnels.',
+        description: 'Le contenu utilise des mots typiques des arnaques financières.',
+        solution: 'Modérez l\'usage de "GRATUIT", "ARGENT", "CASH", "GAGNER" surtout dans le sujet. Si votre offre est légitime, utilisez un ton professionnel plutôt que sensationnaliste.',
         priority: 'high'
     },
 
     'URGENT_WORD': {
-        title: 'Mots d\'urgence',
-        description: 'Utilisation de mots créant une fausse urgence (URGENT, ACT NOW, LIMITED TIME).',
-        solution: 'Évitez les tactiques de pression temporelle agressives.',
+        title: 'Fausse urgence',
+        description: 'Utilisation de mots créant une pression temporelle artificielle.',
+        solution: 'Évitez "URGENT", "AGISSEZ MAINTENANT", "OFFRE LIMITÉE" en majuscules. Si vous avez une vraie deadline, mentionnez-la calmement : "Offre valable jusqu\'au 15 mars".',
         priority: 'medium'
     },
 
     'CLICK_HERE': {
-        title: 'Texte "Cliquez ici"',
-        description: 'Utilisation de textes de lien génériques comme "Cliquez ici" ou "Click here".',
-        solution: 'Utilisez des textes de lien descriptifs : "Voir l\'offre" au lieu de "Cliquez ici".',
+        title: 'Lien générique "Cliquez ici"',
+        description: 'Les liens "Cliquez ici" ou "Click here" sont typiques du spam.',
+        solution: 'Rendez vos liens descriptifs. Mauvais : "Cliquez ici". Bon : "Découvrir nos produits" ou "Télécharger le guide".',
         priority: 'medium'
     },
 
@@ -100,23 +100,23 @@ const SPAMASSASSIN_RULES_FR = {
     },
 
     'BAYES_99': {
-        title: 'Contenu très suspect (Bayésien)',
-        description: 'Le filtre bayésien détecte un contenu très similaire à du spam connu (99% de probabilité).',
-        solution: 'Revoyez complètement le contenu de votre email. Il ressemble fortement à du spam.',
+        title: 'Contenu identifié comme spam',
+        description: 'Le filtre anti-spam a analysé des millions d\'emails et identifie le vôtre comme spam à 99%.',
+        solution: 'Votre email ressemble trop à des spams connus. Réécrivez-le complètement : changez le vocabulaire, le ton, la structure. Inspirez-vous d\'emails de marques connues.',
         priority: 'high'
     },
 
     'BAYES_95': {
-        title: 'Contenu suspect (Bayésien)',
-        description: 'Le filtre bayésien détecte un contenu similaire à du spam (95% de probabilité).',
-        solution: 'Modifiez le ton et le vocabulaire de votre email.',
+        title: 'Contenu très suspect',
+        description: 'Le filtre anti-spam classe votre email comme spam probable (95%).',
+        solution: 'Problème majeur de contenu. Évitez les mots spam, le sensationnalisme, les promesses irréalistes. Adoptez un ton professionnel et factuel.',
         priority: 'high'
     },
 
     'BAYES_50': {
-        title: 'Contenu potentiellement suspect',
-        description: 'Le filtre bayésien n\'est pas sûr si c\'est du spam ou non (50/50).',
-        solution: 'Améliorez la qualité et la clarté de votre contenu.',
+        title: 'Contenu ambigu',
+        description: 'Le filtre hésite : 50% spam, 50% légitime.',
+        solution: 'Clarifiez votre message. Ajoutez du contexte, personnalisez, signez avec vos vraies coordonnées. Montrez que vous êtes une vraie entreprise.',
         priority: 'low'
     },
 
@@ -158,16 +158,16 @@ const SPAMASSASSIN_RULES_FR = {
 
     // HTML et Images
     'HTML_IMAGE_ONLY': {
-        title: 'Email composé uniquement d\'images',
-        description: 'Votre email ne contient que des images, sans texte HTML.',
-        solution: 'Ajoutez du texte HTML visible. Un email 100% image est souvent bloqué.',
+        title: 'Email = une seule image',
+        description: 'Votre email est juste une grande image, sans texte HTML.',
+        solution: 'Grave erreur ! Beaucoup de clients bloquent les images par défaut. Ajoutez du vrai texte HTML. Si vous devez absolument utiliser une image, ajoutez au minimum un titre, un résumé et un CTA en texte.',
         priority: 'high'
     },
 
     'HTML_IMAGE_RATIO_02': {
-        title: 'Trop d\'images par rapport au texte',
-        description: 'Le ratio images/texte est déséquilibré (trop d\'images).',
-        solution: 'Ajoutez plus de contenu texte ou réduisez le nombre/taille des images.',
+        title: 'Trop d\'images, pas assez de texte',
+        description: 'Le ratio images/texte est déséquilibré.',
+        solution: 'Règle d\'or : au moins 60% de texte, maximum 40% d\'images. Ajoutez des descriptions, du contexte, des explications en texte HTML.',
         priority: 'medium'
     },
 
