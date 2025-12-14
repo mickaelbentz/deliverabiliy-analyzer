@@ -8,12 +8,13 @@ const https = require('https');
 
 // Tentative d'URL basée sur le nom du repo
 const POSSIBLE_URLS = [
+    'https://deliverability-analyzer-rp2l.vercel.app',
     'https://deliverabiliy-analyzer.vercel.app',
     'https://deliverability-analyzer.vercel.app',
     'https://email-deliverability-checker.vercel.app'
 ];
 
-// Construction d'un email RFC 5322
+// Construction d'un email RFC 5322 (même format que script.js)
 function constructRawEmail(from, subject, html) {
     const headers = [
         `From: ${from}`,
@@ -21,7 +22,6 @@ function constructRawEmail(from, subject, html) {
         `Subject: ${subject}`,
         `MIME-Version: 1.0`,
         `Content-Type: text/html; charset=UTF-8`,
-        `Message-ID: <${Date.now()}@test.example.com>`,
         `Date: ${new Date().toUTCString()}`
     ].join('\r\n');
 
